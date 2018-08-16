@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using ShareBook.Domain;
 using ShareBook.Domain.Common;
 using ShareBook.Domain.Enums;
@@ -61,71 +60,62 @@ namespace ShareBook.Service
 
         public IList<Book> Top15NewBooks()
         {
-           return  _repository.Get().Where(x => x.Approved).OrderByDescending(x => x.CreationDate).Take(15)
-                .Select(u => new Book
-                {
-                    Id = u.Id,
-                    Title = u.Title,
-                    Author = u.Author,
-                    Approved = u.Approved,
-                    FreightOption = u.FreightOption,
-                    ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
-                    User = new User()
-                    {
-                        Id = u.User.Id,
-                        Email = u.User.Email,
-                        Name = u.User.Name
-                    }
-                }).ToList();
+            return _repository.Get().Where(x => x.Approved
+             && !x.BookUsers.Any(y => y.Status == DonationStatus.Donated)).OrderByDescending(x => x.CreationDate).Take(15)
+                 .Select(u => new Book
+                 {
+                     Id = u.Id,
+                     Title = u.Title,
+                     Author = u.Author,
+                     Approved = u.Approved,
+                     FreightOption = u.FreightOption,
+                     ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
+                     Slug = u.Slug,
+                     User = new User()
+                     {
+                         Id = u.User.Id,
+                         Email = u.User.Email,
+                         Name = u.User.Name,
+                         Linkedin = u.User.Linkedin,
+                         PostalCode = u.User.PostalCode
+                     },
+                     Category = new Category()
+                     {
+                         Name = u.Category.Name
+                     }
+                 }).ToList();
         }
 
         public IList<Book> Random15Books()
         {
-           return _repository.Get().Where(x => x.Approved).OrderBy(x => Guid.NewGuid()).Take(15)
-                .Select(u => new Book
-                {
-                    Id = u.Id,
-                    Title = u.Title,
-                    Author = u.Author,
-                    FreightOption = u.FreightOption,
-                    Approved = u.Approved,
-                    ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
-                    User = new User()
-                    {
-                        Id = u.User.Id,
-                        Email = u.User.Email,
-                        Name = u.User.Name
-                    }
-                }).ToList();
+            return _repository.Get().Where(x => x.Approved 
+            && !x.BookUsers.Any(y => y.Status == DonationStatus.Donated)).OrderBy(x => Guid.NewGuid()).Take(15)
+                 .Select(u => new Book
+                 {
+                     Id = u.Id,
+                     Title = u.Title,
+                     Author = u.Author,
+                     FreightOption = u.FreightOption,
+                     Approved = u.Approved,
+                     ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
+                     Slug = u.Slug,
+                     User = new User()
+                     {
+                         Id = u.User.Id,
+                         Email = u.User.Email,
+                         Name = u.User.Name,
+                         Linkedin = u.User.Linkedin,
+                         PostalCode = u.User.PostalCode
+                     },
+                     Category = new Category()
+                     {
+                         Name = u.Category.Name
+                     }
+                 }).ToList();
         }
 
-        public PagedList<Book> GetAll(int page, int items)
-        {
-            var result = _repository.Get().Include(b => b.User).Skip((page - 1) * items).Take(items)
-                .Select(u => new Book
-                {
-                    Id = u.Id,
-                    Title = u.Title,
-                    Author = u.Author,
-                    Approved = u.Approved,
-                    FreightOption = u.FreightOption,
-                    ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
-                    User = new User()
-                    {
-                        Id = u.User.Id,
-                        Email = u.User.Email,
-                        Name = u.User.Name
-                    }
-                }).ToList();
-
-            return new PagedList<Book>()
-            {
-                Page = page,
-                TotalItems = result.Count,
-                ItemsPerPage = items,
-                Items = result
-            };
-        }
+        public IList<Book> GetAll(int page, int items)
+            => _repository.Get().Include(b => b.User).Include(b => b.BookUsers).Skip((page - 1) * items).Take(items).ToList();
 
         public override Book Get(params object[] keyValues)
         {
@@ -146,13 +136,15 @@ namespace ShareBook.Service
             {
                 entity.ImageSlug = ImageHelper.FormatImageName(entity.ImageName, entity.Title);
 
+                entity.Slug = entity.Title.GenerateSlug();
+
                 result.Value = _repository.Insert(entity);
-                
+
                 result.Value.ImageUrl = _uploadService.UploadImage(entity.ImageBytes, entity.ImageSlug, "Books");
+
                 result.Value.ImageBytes = null;
 
-                // TODO - BUG CAMINHO DO TEMPLATE DE EMAIL
-                //_booksEmailService.SendEmailNewBookInserted(entity).Wait();
+                _booksEmailService.SendEmailNewBookInserted(entity).Wait();
             }
             return result;
         }
@@ -169,15 +161,109 @@ namespace ShareBook.Service
 
             if (!result.Success) return result;
 
+            entity.Slug = entity.Title.GenerateSlug();
             result.Value = _repository.UpdateAsync(entity).Result;
 
             return result;
         }
 
-        public IList<Book> ByTitle(string title) => _repository.Get().Where(x => x.Title.Contains(title) && x.Approved == true).ToList();
+        public IList<Book> ByTitle(string title)
+        {
+            return _repository.Get().Where(x => x.Title.Contains(title) 
+            && x.Approved && !x.BookUsers.Any(y => y.Status == DonationStatus.Donated))
+                  .Select(u => new Book
+                  {
+                      Id = u.Id,
+                      Title = u.Title,
+                      Author = u.Author,
+                      Approved = u.Approved,
+                      FreightOption = u.FreightOption,
+                      ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
+                      Slug = u.Slug,
+                      User = new User()
+                      {
+                          Id = u.User.Id,
+                          Email = u.User.Email,
+                          Name = u.User.Name,
+                          Linkedin = u.User.Linkedin,
+                          PostalCode = u.User.PostalCode                        
+                      },
+                      Category = new Category()
+                      {
+                          Name = u.Category.Name
+                      }                    
+                  }).ToList();
+        }
 
-        public IList<Book> ByAuthor(string author) => _repository.Get().Where(x => x.Author.Contains(author) && x.Approved == true).ToList();
+        public IList<Book> ByAuthor(string author)
+        {
+           return  _repository.Get().Where(x => x.Author.Contains(author) 
+           && x.Approved && !x.BookUsers.Any(y => y.Status == DonationStatus.Donated))
+                .Select(u => new Book
+                {
+                    Id = u.Id,
+                    Title = u.Title,
+                    Author = u.Author,
+                    Approved = u.Approved,
+                    FreightOption = u.FreightOption,
+                    ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
+                    Slug = u.Slug,
+                    User = new User()
+                    {
+                        Id = u.User.Id,
+                        Email = u.User.Email,
+                        Name = u.User.Name,
+                        Linkedin = u.User.Linkedin,
+                        PostalCode = u.User.PostalCode
+                    },
+                    Category = new Category()
+                    {
+                        Name = u.Category.Name
+                    }
+                }).ToList();
+        }
 
-        public Book BySlug(string slug) => _repository.Get().Where(x => x.ImageSlug.Contains(slug)).FirstOrDefault();
+        public Book BySlug(string slug)
+        {
+           return  _repository.Get().Where(x => x.Slug.Contains(slug)
+            && x.Approved && !x.BookUsers.Any(y => y.Status == DonationStatus.Donated) )
+                .Select(u => new Book
+                {
+                    Id = u.Id,
+                    Title = u.Title,
+                    Author = u.Author,
+                    Approved = u.Approved,
+                    FreightOption = u.FreightOption,
+                    ImageUrl = _uploadService.GetImageUrl(u.ImageSlug, "Books"),
+                    Slug = u.Slug,
+                    User = new User()
+                    {
+                        Id = u.User.Id,
+                        Email = u.User.Email,
+                        Name = u.User.Name,
+                        Linkedin = u.User.Linkedin,
+                        PostalCode = u.User.PostalCode
+                    },
+                    Category = new Category()
+                    {
+                        Name = u.Category.Name
+                    }
+                }).FirstOrDefault();
+        }
+
+        public bool UserRequestedBook(Guid bookId)
+        {
+            var userId = new Guid(Thread.CurrentPrincipal?.Identity?.Name);
+            return _repository.Any(x => 
+                    x.Id == bookId &&
+                    x.BookUsers
+                    .Any(y => 
+                    y.Status == DonationStatus.WaitingAction
+                    && y.UserId == userId
+              ));
+        }
+
+        public override PagedList<Book> Get<TKey>(Expression<Func<Book, bool>> filter, Expression<Func<Book, TKey>> order, int page, int itemsPerPage)
+            =>   base.Get(filter, order, page, itemsPerPage);
     }
 }

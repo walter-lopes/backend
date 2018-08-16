@@ -24,16 +24,39 @@ namespace ShareBook.Api.Controllers
         private readonly IUserService _userService;
         private readonly IApplicationSignInManager _signManager;
 
+       
+
         public AccountController(IUserService userService, IApplicationSignInManager signManager)
         {
             _userService = userService;
             _signManager = signManager;
         }
 
+        #region GET
+        [Authorize("Bearer")]
+        [HttpGet]
+        public User Get()
+        {
+            var id = new Guid(Thread.CurrentPrincipal?.Identity?.Name);
+            return _userService.Get(id);
+        }
+
+
+        [Authorize("Bearer")]
+        [HttpGet("Profile")]
+        public object Profile()
+        {
+            var id = new Guid(Thread.CurrentPrincipal?.Identity?.Name);
+            return new { profile = _userService.Get(id).Profile.ToString() };
+        }
+        #endregion
+
+
+        #region POST
         [HttpPost("Register")]
         [ProducesResponseType(typeof(object), 200)]
         [ProducesResponseType(409)]
-        public IActionResult Post([FromBody]RegisterUserVM registerUserVM, 
+        public IActionResult Post([FromBody]RegisterUserVM registerUserVM,
             [FromServices]SigningConfigurations signingConfigurations,
             [FromServices]TokenConfigurations tokenConfigurations)
         {
@@ -41,7 +64,7 @@ namespace ShareBook.Api.Controllers
                 return BadRequest();
 
             var user = Mapper.Map<RegisterUserVM, User>(registerUserVM);
-           
+
             var result = _userService.Insert(user);
 
             if (result.Success)
@@ -65,19 +88,20 @@ namespace ShareBook.Api.Controllers
             var result = _userService.AuthenticationByEmailAndPassword(user);
 
             if (result.Success)
-                return Ok(_signManager.GenerateTokenAndSetIdentity(result.Value, signingConfigurations, tokenConfigurations));
+            {
+                var response = new Result
+                {
+                    Value = _signManager.GenerateTokenAndSetIdentity(result.Value, signingConfigurations, tokenConfigurations)
+                };
+
+                return Ok(response);
+            }
 
             return NotFound(result);
         }
+        #endregion
 
-        [Authorize("Bearer")]
-        [HttpGet]
-        public User Get()
-        {
-            var id = new Guid(Thread.CurrentPrincipal?.Identity?.Name);
-            return _userService.Get(id);
-        }
-
+        #region PUT
         [Authorize("Bearer")]
         [HttpPut]
         [ProducesResponseType(typeof(object), 200)]
@@ -99,13 +123,15 @@ namespace ShareBook.Api.Controllers
             return Conflict(result);
         }
 
+
         [Authorize("Bearer")]
         [HttpPut("ChangePassword")]
         public Result<User> ChangePassword([FromBody]ChangePasswordUserVM changePasswordUserVM)
         {
-           var user = new User() { Password = changePasswordUserVM.OldPassword };
+            var user = new User() { Password = changePasswordUserVM.OldPassword };
 
-           return  _userService.ChangeUserPassword(user, changePasswordUserVM.NewPassword);
+            return _userService.ChangeUserPassword(user, changePasswordUserVM.NewPassword);
         }
+        #endregion
     }
 }

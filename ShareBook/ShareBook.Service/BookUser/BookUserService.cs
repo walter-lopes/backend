@@ -1,6 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using Microsoft.EntityFrameworkCore;
 using ShareBook.Domain;
+using ShareBook.Domain.Enums;
 using ShareBook.Domain.Exceptions;
 using ShareBook.Repository;
 using ShareBook.Repository.Infra;
@@ -22,11 +26,16 @@ namespace ShareBook.Service
             _bookUsersEmailService = bookUsersEmailService;
         }
 
-        public void Insert(Guid idBook)
+        public IList<User> GetGranteeUsersByBookId(Guid bookId) =>
+            _bookUserRepository.Get().Include(x => x.User)
+            .Where(x => x.BookId == bookId && x.Status == DonationStatus.WaitingAction)
+            .Select(x => x.User.Cleanup()).ToList();
+
+        public void Insert(Guid bookId)
         {
             var bookUser = new BookUser()
             {
-                BookId = idBook,
+                BookId = bookId,
                 UserId = new Guid(Thread.CurrentPrincipal?.Identity?.Name)
             };          
 
@@ -38,6 +47,38 @@ namespace ShareBook.Service
 
             _bookUserRepository.Insert(bookUser);
             _bookUsersEmailService.SendEmailBookRequested(bookUser);
+        }
+
+        public void DonateBook(Guid bookId, Guid userId, string note)
+        {
+            var bookUserAccepted = _bookUserRepository.Get().Include(u => u.Book).Include( u => u.User)
+                .Where(x => x.UserId == userId 
+                    && x.BookId == bookId 
+                    && x.Status == DonationStatus.WaitingAction)
+                    .FirstOrDefault();
+
+            if(bookUserAccepted == null) 
+                throw new ShareBookException("Não existe a relação de usuário e livro para a doação.");
+
+            bookUserAccepted.UpdateBookUser(DonationStatus.Donated, note);
+
+            _bookUserRepository.Update(bookUserAccepted);
+
+            DeniedBookUsers(bookId);
+
+            _bookUsersEmailService.SendEmailBookDonated(bookUserAccepted);
+        }
+
+        public void DeniedBookUsers(Guid bookId)
+        {
+            var bookUsersDenied = _bookUserRepository.Get().Where(x => x.BookId == bookId
+            && x.Status == DonationStatus.WaitingAction).ToList();
+            foreach (var item in bookUsersDenied)
+            {
+                string note = string.Empty;
+                item.UpdateBookUser(DonationStatus.Denied, note);
+                _bookUserRepository.Update(item);
+            }
         }
     }
 }
