@@ -41,9 +41,16 @@ namespace ShareBook.Api.Controllers
 
         [HttpGet()]
         [Authorize("Bearer")]
-        [AuthorizationFilter(Permissions.Permission.DonateBook)]
+        [AuthorizationFilter(Permissions.Permission.DonateBook)]      
         public PagedList<BooksVM> GetAll() => Paged(1, 15);
 
+
+        /// <summary>
+        ///  Get books paginated.
+        /// </summary>
+        /// <param name="page">Number's page.</param>
+        /// <param name="items">Items per page.</param>
+        /// <returns></returns>
         [HttpGet("{page}/{items}")]
         [Authorize("Bearer")]
         [AuthorizationFilter(Permissions.Permission.DonateBook)]
@@ -60,14 +67,30 @@ namespace ShareBook.Api.Controllers
             };
         }
 
+        /// <summary>
+        /// Get book by Id.
+        /// </summary>
+        /// <param name="id">Book's Id.</param>
+        /// <returns></returns>
         [HttpGet("{id}")]
         public Book GetById(string id) => _service.Find(new Guid(id));
 
+
+        /// <summary>
+        /// Approve book by Id and Choose Date.
+        /// </summary>
+        /// <param name="id">Book's Id.</param>
+        /// <param name="approveBookVM">View Model with Choose Date.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [HttpPost("Approve/{id}")]
         [AuthorizationFilter(Permissions.Permission.ApproveBook)]
-        public Result<Book> Approve(string id, [FromBody] ApproveBookVM model) => _service.Approve(new Guid(id), model?.ChooseDate);
+        public Result<Book> Approve(string id, [FromBody] ApproveBookVM approveBookVM) => _service.Approve(new Guid(id), approveBookVM?.ChooseDate);
 
+        /// <summary>
+        /// Get freight options to select in donation book.
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("FreightOptions")]
         public IList<dynamic> FreightOptions()
         {
@@ -75,11 +98,22 @@ namespace ShareBook.Api.Controllers
             return freightOptions;
         }
 
+        /// <summary>
+        /// Get book's grantee.
+        /// </summary>
+        /// <param name="bookId">Book's Id.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [HttpGet("GranteeUsersByBookId/{bookId}")]
         [AuthorizationFilter(Permissions.Permission.DonateBook)]
         public IList<User> GetGranteeUsersByBookId(string bookId) => _bookUserService.GetGranteeUsersByBookId(new Guid(bookId));
 
+
+        /// <summary>
+        /// Get book's by slug.
+        /// </summary>
+        /// <param name="slug">Book's slug.</param>
+        /// <returns></returns>
         [HttpGet("Slug/{slug}")]
         public IActionResult Get(string slug)
         {
@@ -87,23 +121,61 @@ namespace ShareBook.Api.Controllers
             return book != null ? (IActionResult)Ok(book) : NotFound();
         }
 
+
+        /// <summary>
+        /// Get fifteen most recents books
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("Top15NewBooks")]
         public IList<Book> Top15NewBooks() => _service.Top15NewBooks();
 
+        /// <summary>
+        /// Get fifteen randomicos books.
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("Random15Books")]
         public IList<Book> Random15Books() => _service.Random15Books();
 
+        /// <summary>
+        /// Get books paginated by title.
+        /// </summary>
+        /// <param name="title">Book's title.</param>
+        /// <param name="page">Number's page.</param>
+        /// <param name="items">Items per page.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [HttpGet("Title/{title}/{page}/{items}")]
         public PagedList<Book> ByTitle(string title, int page, int items) => _service.ByTitle(title, page, items);
 
+        /// <summary>
+        /// Get books paginated by title.
+        /// </summary>
+        /// <param name="title">Book's title.</param>
+        /// <param name="page">Number's page.</param>
+        /// <param name="items">Items per page.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [HttpGet("Author/{author}/{page}/{items}")]
         public PagedList<Book> ByAuthor(string author, int page, int items) => _service.ByAuthor(author, page, items);
 
+        /// <summary>
+        /// Full text search for users 
+        /// </summary>
+        /// <param name="criteria">Criteria of the search (title, author, category).</param>
+        /// <param name="page">Number's page.</param>
+        /// <param name="items">Items per page.</param>
+        /// <returns></returns>
+        [Authorize("Bearer")]
         [HttpGet("FullSearch/{criteria}/{page}/{items}")]
         public PagedList<Book> FullSearch(string criteria, int page, int items) => _service.FullSearch(criteria, page, items);
 
+        /// <summary>
+        /// Full text search for admins
+        /// </summary>
+        /// <param name="criteria">Criteria of the search (title, author, category).</param>
+        /// <param name="page">Number's page.</param>
+        /// <param name="items">Items per page.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [HttpGet("FullSearchAdmin/{criteria}")]
         [AuthorizationFilter(Permissions.Permission.DonateBook)]
@@ -113,6 +185,11 @@ namespace ShareBook.Api.Controllers
             return _service.FullSearch(criteria, page, items, isAdmin);
         }
 
+        /// <summary>
+        /// Request a book to donation
+        /// </summary>
+        /// <param name="requestBookVM">Informations about the book.</param>
+        /// <returns></returns>
         [Authorize("Bearer")]
         [ProducesResponseType(typeof(Result), 200)]
         [HttpPost("Request")]
