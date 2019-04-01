@@ -19,6 +19,16 @@ http://www.sharebook.com.br/swagger/
 - Acesse a pasta `raiz_do_projeto/Sharebook`
 - Execute: ```dotnet restore``` e na sequencia ```dotnet run --project ShareBook.Api```
 
+## Como rodar o projeto no DOCKER ?
+
+Assumindo que já tenha o [Docker](https://www.docker.com) instalado na máquina, execute os procedimentos abaixo:
+
+1. Abra o console na pasta raiz da aplicação
+
+2. Execute o o deploy, atualiza a imagem da aplicação e cria o banco MongoDB ```docker-compose up -d --build```
+
+3. No seu browser acesse a url http://localhost:8181/swagger para acessar as apis
+
 
 ** Não se esquecer de mudar a connection string para a sua base de dados no arquivo appsettings.json que se encontra na camada da API do projeto.
 
