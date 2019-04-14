@@ -14,4 +14,8 @@ notifications:
 
 before_install:
   - cd ShareBook
-  - docker build -t sharebook-api .   
+  - docker build -t sharebook-api .
+
+script:
+  - dotnet build
+  - dotnet test ShareBook.Test.Unit/ShareBook.Test.Unit.csproj --filter  TestCategory!=BDD
