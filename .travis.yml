@@ -13,4 +13,5 @@ notifications:
     on_failure: always
 
 before_install:
-  - docker build -t sharebook-api ShareBook/.   
+  - cd ShareBook
+  - docker build -t sharebook-api .   
